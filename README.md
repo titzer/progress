@@ -90,7 +90,7 @@ This is useful, e.g. if your process *crashes*.
 
 One of the most compact modes, this mode outputs the name of the *current* task running, as well as the number of passed/failed.
 This is very useful to see the incremental progress of a process and helps to diagnose subtasks that get stuck.
-This is also useful, your process crashes.
+This is also useful if your process crashes.
 
 ### Summary mode
 
