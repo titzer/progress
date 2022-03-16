@@ -35,7 +35,7 @@ To denote a special line, a process outputs a line that *must begin with* the tw
 Such a line will be treated specially, and all other lines will be ignored.
 (If your process happens to output lines starting with `##` for some other reason, you can escape them with `###`, or another way.)
 
-The special line command are:
+The special line commands are:
 
 * `##>`, followed immediately by a decimal integer. This declares the number of coming subtasks.
 * `##+`, followed by a string. This declares the start of a subtask and gives it a name.
