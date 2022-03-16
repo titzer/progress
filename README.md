@@ -25,7 +25,7 @@ If we know how many subtasks are in a computation, and we denote where they begi
 
 The utilities here do this by processing textual output from the `stdout` of your process, line by line.
 If the line starts with a special escape sequence, then the utilities parse the line, learning how many tests are coming, where they start and end, and their outcome.
-Allow other lines are simply ignored, so you change *nothing else* about how you log your output.
+All other lines are simply ignored, so you change *nothing else* about how you log your output.
 Once the format is agreed upon, standard utilities can generate clean reports for all kinds of different processes, in a completely language-agnostic way.
 
 ### Escape sequences: standardized subtask delimiters
