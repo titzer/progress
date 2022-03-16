@@ -1,5 +1,5 @@
 # progress
-A utility for processing large amounts of textual output in test and build systems.
+A simple-text subtask progress standard and accompanying utilities.
 
 ## Introduction: The output is too dang long!
 
