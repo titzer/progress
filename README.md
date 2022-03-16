@@ -1,7 +1,7 @@
 # progress
 A utility for processing large amounts of textual output in test and build systems.
 
-## Introduction
+## Introduction: The output is too dang long!
 
 Testing and building software systems are notoriously verbose tasks that generate a lot of textual output indicating their progress.
 This logging output is generally difficult to sift through by visual inspection alone, especially when such output consists of hundreds or thousands of lines, inducing a condition known as "scroll blindness".
@@ -9,14 +9,14 @@ Most of the time, when things go well, tests pass and builds succeed, and we are
 Yet detailed logs are key for diagnosing a failure deep in a complex build or set of tests.
 We don't want to see the details every time, so how do we resolve this dillema?
 
-## Denote Subtasks For Simplified Output
+## Solution: Break logs into subtasks
 
 The answer is that we should *both* log the verbose details of the process, but only present a simplified output to the user who can then tell at a glance that something succeeded, or if it failed, where and how.
 This repo contains a set of utilities to make this a snap.
 With a small change to your process's standard output, interspersing a few text lines here and there, you can make use of the standard tools here.
 Then, you don't need to reinvent the wheel making a nice UI for users waiting on your program to finish.
 
-## Escaped Lines Denote Subtasks
+## Denoting subtasks in log files: escaped lines
 
 We start with a process that *already* logs text.
 The next step is to break down a large task into subtasks of an appropriate granularity.
@@ -28,14 +28,14 @@ If the line starts with a special escape sequence, then the utilities parse the 
 Allow other lines are simply ignored, so you change *nothing else* about how you log your output.
 Once the format is agreed upon, standard utilities can generate clean reports for all kinds of different processes, in a completely language-agnostic way.
 
-### Escape Sequences For Line Starts
+### Escape sequences: standardized subtask delimiters
 
 To keep things simple, our utilities process text line by line, looking only for special lines that start with a delimiter.
 To denote a special line, a process outputs a line that *must begin with* the two characters `##`.
 Such a line will be treated specially, and all other lines will be ignored.
 (If your process happens to output lines starting with `##` for some other reason, you can escape them with `###`, or another way.)
 
-The special line commands are:
+The escaped line commands are:
 
 * `##>`, followed immediately by a decimal integer. This declares the number of coming subtasks.
 * `##+`, followed by a string. This declares the start of a subtask and gives it a name.
@@ -44,7 +44,7 @@ The special line commands are:
 
 That's it! You only need to intersperse these lines into your standard output, and then a tool can parse it to do all the presentation magic.
 
-## Using the Pre-built `progress` Utility
+## Using the pre-built `progress` utility
 
 At this point, let's assume you've added these special lines in your process output.
 Nothing is better just yet!
@@ -64,7 +64,7 @@ If we want to *also* keep the original log, with all of its details, we can use 
 % myprocess | tee mylog.txt | progress
 ```
 
-## Output Styles of default `progress` utility
+## Output styles of default `progress` utility
 
 The `progress` utility is designed to work with thousands and millions of subtasks.
 It processes the output at high speed; it doesn't keep any complex data structures.
@@ -97,10 +97,14 @@ This is also useful if your process crashes.
 The most compact mode, this mode only outputs pass/fail for the entire process execution, i.e. if *all* subtasks pass.
 It outputs the pass/fail in the *same progress format*, so it could be processed by *another* instance of the utility.
 
-## Make It Your Own!
+## Make Your Own!
 
 The simplicity of this approach is that we decouple the producer of log output from the presentation to the user.
 The connection between the two is simply the standardized, stylized lines above.
 You can and *should* write your *own* processors that format subtask output however you like.
-There is no limit to what you can do: make a GUI, plot multiple processes in parallel, use the coolest terminal tricks you can muster.
+There is no limit to what you can do: make a GUI, plot multiple processes in parallel, use the coolest terminal tricks and the fanciest animations you can muster.
+With a standard format for subtask progress, you can hook your tool up to anything.
+
+A progress processor is also a great starter project for learning any new programming language.
+Write your own!
 Go for it!
