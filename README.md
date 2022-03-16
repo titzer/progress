@@ -44,7 +44,7 @@ The special line command are:
 
 That's it! You only need to intersperse these lines into your standard output, and then a tool can parse it to do all the presentation magic.
 
-## Output Styles of default `progress` utility
+## Using the `progress` utility
 
 At this point, let's assume you've added these special lines in your process output.
 Nothing is better just yet!
@@ -63,6 +63,8 @@ If we want to *also* keep the original log, with all of its details, we can use 
 ```
 % myprocess | tee mylog.txt | progress
 ```
+
+## Output Styles of default `progress` utility
 
 The `progress` utility is designed to work with thousands and millions of subtasks.
 It processes the output at high speed; it doesn't keep any complex data structures.
@@ -94,3 +96,11 @@ This is also useful, your process crashes.
 
 The most compact mode, this mode only outputs pass/fail for the entire process execution, i.e. if *all* subtasks pass.
 It outputs the pass/fail in the *same progress format*, so it could be processed by *another* instance of the utility.
+
+## Make Your Own Utilities!
+
+The simplicity of this approach is that we decouple the producer of log output from the presentation to the user.
+The connection between the two is simply the stylized lines above.
+You can and *should* write your *own* processors that format subtask output however you like.
+There is no limit to what you can do: make a GUI, plot multiple processes in parallel, use the coolest terminal tricks you can muster.
+Go for it!
