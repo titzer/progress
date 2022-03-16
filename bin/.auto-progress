@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# This script automatically senses the host platform and runs the appropriate host-specific
+# binary transparently. It symlinks the appropriate host binary to avoid this step thereafter.
+
+# Find out the directory corresponding to this script.
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  BIN="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$BIN/$SOURCE"
+done
+BIN="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+
+# Find suitable host platforms.
+HOSTS=$($BIN/sense_host)
+PROGRESS_LINK=$BIN/progress
+
+# Look for binaries for the first supported host platform.
+for host in $HOSTS; do
+    exe=$BIN/progress-$host
+    if [ -x $exe ]; then
+	rm -f $PROGRESS_LINK
+	ln -s $exe $PROGRESS_LINK
+        exec $exe $@
+    fi
+done
+
+echo progress: no suitable host executables available.
+exit 1
