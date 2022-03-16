@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Determine which platforms are supported by the host.
+HOSTS=""
+
+# First try to match the result of $(uname).
+PLATFORM=$(uname -sm)
+
+if [[ "$PLATFORM" = "Darwin i386" || "$PLATFORM" = "Darwin x86_64" ]]; then
+	HOSTS="x86-darwin $HOSTS"
+fi
+
+if [[ "$PLATFORM" = "Darwin arm64" ]]; then
+	HOSTS="arm64-darwin $HOSTS"
+fi
+
+if [[ "$PLATFORM" = "Linux i386" || "$PLATFORM" = "Linux i686" ]]; then
+	HOSTS="x86-linux $HOSTS"
+fi
+
+if [[ "$PLATFORM" = "Linux x86_64" ]]; then
+	HOSTS="x86-linux x86-64-linux $HOSTS"
+fi
+
+# Look for a functional Java Virtual Machine.
+JAVA=$(which java)
+
+if [ ! -z "$JAVA" ]; then
+	HOSTS="$HOSTS jar"
+fi
+
+if [ -n "$HOSTS" ]; then
+   echo $HOSTS
+else
+   echo unknown platform: $PLATFORM
+   exit 1
+fi

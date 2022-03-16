@@ -1,0 +1,302 @@
+// Copyright 2020 Ben L. Titzer. All rights reserved.
+// Copyright 2017 Google Inc. All rights reserved.
+// See LICENSE for details of Apache 2.0 license.
+
+enum OutputMode {
+	INLINE,
+	CHARACTER,
+	LINES,
+	SUMMARY
+}
+
+class Failure(name: string, error: string) { }
+
+def CTRL_C: byte = 0x03;
+def CTRL_D: byte = 0x04;
+def STDIN = 0;
+def STDOUT = 1;
+
+// Global state
+var mode = OutputMode.CHARACTER;
+var indent = 0;
+var testCount = 0;
+var passed = 0;
+var failed = 0;
+var failures: List<Failure>;
+var currentTest: string;
+def lineBuffer = Array<byte>.new(4096);
+var lineEnd = 0;
+
+def main(args: Array<string>) -> int {
+	for (a in args) {
+		for (c in a) {
+			match (c) {
+				'l' => mode = OutputMode.LINES;
+				'c' => mode = OutputMode.CHARACTER;
+				'i' => mode = OutputMode.INLINE;
+				's' => mode = OutputMode.SUMMARY;
+				't' => indent++;
+			}
+		}
+	}
+	if (mode == OutputMode.SUMMARY) indent = 0;
+	
+	reportStart();
+	while (true) {
+		var v = System.fileRead(STDIN);
+		if (v < 0) { // EOF
+			processLine();
+			break;
+		}
+		var b = byte.!(v);
+		if (b == CTRL_C) break;
+		if (b == CTRL_D) break;
+		if (b == '\n') { // EOL
+			processLine();
+		} else {
+			if (lineEnd < lineBuffer.length) lineBuffer[lineEnd++] = b;
+		}
+	}
+	var ok = reportFinish();
+	return if(ok, 0, 1);
+}
+
+def processLine() {
+	var pos = 3, end = lineEnd;
+	if (lineEnd < pos) return;
+	if (lineBuffer[0] == '#' && lineBuffer[1] == '#') {
+		match (lineBuffer[2]) {
+			'+' => {
+				// begin the next test
+				var testName = Arrays.range(lineBuffer, pos, end);
+				reportTestBegin(testName);
+			}
+			'-' => {
+				// end the current test
+				var passed = matchStr("ok", lineBuffer, pos, end);
+				if (passed) reportTestPassed();
+				else reportTestFailed(Arrays.range(lineBuffer, pos, end));
+			}
+			'>' => {
+				// increase the total test count
+				var p = Ints.parsePosDecimal(lineBuffer, pos);
+				if (p.0 > 0) testCount += int.view(p.1);
+			}
+		}
+	}
+	lineEnd = 0;
+}
+
+def reportStart() {
+	if (mode != OutputMode.INLINE) outindent();
+	if (mode == OutputMode.SUMMARY) outs("##+\n");
+}
+
+def reportTestBegin(testName: string) {
+	if (currentTest != null) reportTestFailed("unterminated test case");
+	currentTest = testName;
+	match (mode) {
+		LINES => {
+			outs(testName);
+			outs("...");
+		}
+		INLINE => {
+			clearln();
+			outputPassedCount();
+			outs(" | ");
+			outs(testName);
+		}
+		_ => ;
+	}
+}
+
+def reportTestPassed() {
+	passed++;
+	currentTest = null;
+	match (mode) {
+		INLINE => {
+			clearln();
+			outputPassedCount();
+			outs(" | ");
+		}
+		CHARACTER => {
+			green("o");
+			space();
+		}
+		LINES => {
+			green("ok");
+			outln();
+		}
+		SUMMARY => {
+			// output nothing
+		}
+	}
+}
+
+def reportTestFailed(error: string) {
+	failed++;
+	var failure = Failure.new(currentTest, error);
+	failures = List.new(failure, failures);
+	currentTest = null;
+	match (mode) {
+		INLINE => {
+			clearln();
+			if (failed == 1) outln();
+			outputFailure(failure);
+		}
+		CHARACTER => {
+			red("X");
+			space();
+		}
+		LINES => {
+			red("failed");
+			outln();
+		}
+		SUMMARY => {
+			// output nothing
+		}
+	}
+}
+
+def reportFinish() -> bool {
+	if (currentTest != null) reportTestFailed("abrupt output end");
+
+	var ok = failures == null && failed == 0;
+	match (mode) {
+		INLINE => {
+			clearln();
+			outputPassedCount();
+			System.ln();
+		}
+		SUMMARY => {
+			if (ok) outs("##-ok\n");
+			else {
+				outs("##-fail ");
+				outi(failed);
+				outs(" failed\n");
+			}
+		}
+		_ => {
+			if (mode == OutputMode.CHARACTER) {
+				var done = passed + failed;
+				if (done % 50 != 0) {
+					if (done % 10 != 0) outsp();
+					outputCount(done);
+					outln();
+				}
+			}
+			for (l = Lists.reverse(failures); l != null; l = l.tail) {
+				outputFailure(l.head);
+			}
+			outputPassedCount();
+			System.ln();
+		}
+	}
+	return ok;
+}
+
+def outputFailure(f: Failure) {
+	if (f.name != null) red(f.name);
+	else red("<unknown>");
+	outs(": ");
+	if (f.error != null) outs(f.error);
+	outln();
+}
+
+def outputPassedCount() {
+	outputCount(passed);
+	outsp();
+	if (passed > 0) green("passed");
+	else outs("passed");
+	if (failed > 0) {
+		outsp();
+		RED();
+		outi(failed);
+		outs(" failed");
+		NORM();
+	}
+}
+
+def outputCount(count: int) {
+	outi(count);
+	outs(" of ");
+	var total = passed + failed;
+	if (total < testCount) total = testCount;
+	outi(total);
+}
+
+def space() {
+	var done = passed + failed;
+	if (done % 10 == 0) {
+		outc(' ');
+	}
+	if (done % 50 == 0) {
+		outputCount(done);
+		outln();
+	}
+}
+
+def matchStr(expected: string, array: Array<byte>, pos: int, end: int) -> bool {
+	if ((pos + expected.length) > end) return false;
+	for (i < expected.length) {
+		if (expected[i] != array[pos + i]) return false;
+	}
+	return true;
+}
+
+// IO and terminal formatting helpers.
+// Track the number of characters to backup and overwrite.
+var charBackup = 0;
+def RED = Vt100.fgRed;
+def GREEN = Vt100.fgGreen;
+def NORM = Vt100.fgNorm;
+def outc(c: byte) {
+	System.putc(c);
+	charBackup++;
+}
+def outi(i: int) {
+	System.puti(i);
+	charBackup++;
+	while (i >= 10) {
+		charBackup++;
+		i /= 10;
+	}
+}
+def outs(s: string) {
+	System.puts(s);
+	charBackup += s.length;
+}
+def outln() {
+	System.ln();
+	outindent();
+	charBackup = 0;
+}
+def outsp() {
+	outc(' ');
+}
+def green(s: string) {
+	GREEN();
+	outs(s);
+	NORM();
+}
+def red(s: string) {
+	RED();
+	outs(s);
+	NORM();
+}
+def clearln() {
+	if (false) {
+		outc('\r');
+		outindent();
+		Vt100.eraseLine();
+	} else {
+		backup(charBackup);
+		charBackup = 0;
+	}
+}
+def outindent() {
+	for (i < indent) System.putc(' ');
+}
+def backup(count: int) {
+	while (charBackup-- > 0) System.puts("\x08 \x08");
+}
