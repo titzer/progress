@@ -9,14 +9,14 @@ Most of the time, when things go well, tests pass and builds succeed, and we are
 Yet detailed logs are key for diagnosing a failure deep in a complex build or set of tests.
 We don't want to see the details every time, so how do we resolve this dillema?
 
-## The Solution
+## Denote Subtasks For Simplified Output
 
 The answer is that we should *both* log the verbose details of the process, but only present a simplified output to the user who can then tell at a glance that something succeeded, or if it failed, where and how.
 This repo contains a set of utilities to make this a snap.
 With a small change to your process's standard output, interspersing a few text lines here and there, you can make use of the standard tools here.
 Then, you don't need to reinvent the wheel making a nice UI for users waiting on your program to finish.
 
-## Stylized Lines
+## Escaped Lines Denote Subtasks
 
 We start with a process that *already* logs text.
 The next step is to break down a large task into subtasks of an appropriate granularity.
@@ -28,7 +28,7 @@ If the line starts with a special escape sequence, then the utilities parse the 
 Allow other lines are simply ignored, so you change *nothing else* about how you log your output.
 Once the format is agreed upon, standard utilities can generate clean reports for all kinds of different processes, in a completely language-agnostic way.
 
-### Escape sequences
+### Escape Sequences For Line Starts
 
 To keep things simple, our utilities process text line by line, looking only for special lines that start with a delimiter.
 To denote a special line, a process outputs a line that *must begin with* the two characters `##`.
@@ -44,7 +44,7 @@ The special line command are:
 
 That's it! You only need to intersperse these lines into your standard output, and then a tool can parse it to do all the presentation magic.
 
-## Using the `progress` utility
+## Using the Pre-built `progress` Utility
 
 At this point, let's assume you've added these special lines in your process output.
 Nothing is better just yet!
@@ -97,10 +97,10 @@ This is also useful, your process crashes.
 The most compact mode, this mode only outputs pass/fail for the entire process execution, i.e. if *all* subtasks pass.
 It outputs the pass/fail in the *same progress format*, so it could be processed by *another* instance of the utility.
 
-## Make Your Own Utilities!
+## Make It Your Own!
 
 The simplicity of this approach is that we decouple the producer of log output from the presentation to the user.
-The connection between the two is simply the stylized lines above.
+The connection between the two is simply the standardized, stylized lines above.
 You can and *should* write your *own* processors that format subtask output however you like.
 There is no limit to what you can do: make a GUI, plot multiple processes in parallel, use the coolest terminal tricks you can muster.
 Go for it!
