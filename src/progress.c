@@ -1,11 +1,42 @@
 // Copyright 2020 Ben L. Titzer. All rights reserved.
 // See LICENSE for details of Apache 2.0 license.
 
-#include "progress.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#define RESET "\033[0m"
+#define RED "\033[0;31m"
+#define GREEN "\033[0;32m"
+#define BUF_SIZE 4096
+#define DEBUG 0
+
+enum output_mode {
+    INLINE,
+    CHARACTER,
+    LINES,
+    SUMMARY
+};
+
+struct failure {
+    char *name;
+    char *error;
+};
+
+struct node {
+    struct failure *val;
+    struct node *next;
+} *head, *tail;
+
+int match_ok(char *, int, int);
+char *str_slice(char *, int, int);
+void process_line();
+void report_start();
+int report_finish();
+void report_test_begin(char *);
+void report_test_passed();
+void report_test_failed(char *);
 
 // Global state
 static enum output_mode mode = CHARACTER;
@@ -18,6 +49,7 @@ static char *line_buffer = NULL;
 static int line_end = 0;
 static size_t buf_size = 0;
 
+// Used to implement clearing of the line by backing up one character at a time
 int char_backup = 0;
 
 void insert(struct failure *f) {
@@ -31,22 +63,6 @@ void insert(struct failure *f) {
     } else {
         tail->next = node;
         tail = node;
-    }
-}
-
-void free_list(struct node **head_ref) {
-    struct node *tmp;
-    struct node *head = *head_ref;
-    struct failure *f;
-    while (head != NULL) {
-        tmp = head;
-        head = head->next;
-        f = tmp->val;
-        free(f->name);
-        if (f->is_dynamic)
-            free(f->error);
-        free(f);
-        free(tmp);
     }
 }
 
@@ -71,22 +87,20 @@ int main(int argc, char *argv[]) {
                 case 't':
                     indent++;
                     break;
-                default:
+	        default:
                     fprintf(stderr, "Usage: progress [iclst]\n");
                     exit(EXIT_FAILURE);
             }
         }
     }
 
-    if (mode == SUMMARY)
-        indent = 0;
+    if (mode == SUMMARY) indent = 0;
 
     report_start();
     while (getline(&line_buffer, &buf_size, stdin) > 0) {
         line_end = strlen(line_buffer) - 1; // getline reads '\n' as well
         process_line();
     }
-    free(line_buffer);
     return report_finish();
 }
 
@@ -103,18 +117,15 @@ void process_line() {
                 break;
             case '-': ;
                 // end the current test
-                int passed = match_str("ok", line_buffer, pos, end);
-                if (passed)
-                    report_test_passed();
-                else
-                    report_test_failed(str_slice(line_buffer, pos, end), 1);
+                int passed = match_ok(line_buffer, pos, end);
+                if (passed) report_test_passed();
+                else report_test_failed(str_slice(line_buffer, pos, end));
                 break;
             case '>': ;
                 // increase the total test count
                 char *count_str = str_slice(line_buffer, pos, end);
                 int count = strtol(count_str, NULL, 10);
-                if (count > 0)
-                    test_count += count;
+                if (count > 0) test_count += count;
                 free(count_str);
                 break;
         }
@@ -136,8 +147,7 @@ void outs(char *str) {
 }
 
 void outindent() {
-    for (int i = 0; i < indent; i++)
-        printf(" ");
+    for (int i = 0; i < indent; i++) printf(" ");
 }
 
 void outln() {
@@ -163,8 +173,7 @@ void red(char *str) {
 }
 
 void backup(int count) {
-    while (count-- > 0)
-        printf("\b \b");
+    while (count-- > 0) printf("\b \b");
 }
 
 void clearln() {
@@ -173,13 +182,10 @@ void clearln() {
 }
 
 void output_failure(struct failure* f) {
-    if (f->name != NULL)
-        red(f->name);
-    else
-        red("<unknown>");
+    if (f->name != NULL) red(f->name);
+    else red("<unknown>");
     outs(": ");
-    if (f->error != NULL)
-        outs(f->error);
+    if (f->error != NULL) outs(f->error);
     outln();
 }
 
@@ -195,10 +201,8 @@ void output_count(int count) {
 void output_passed_count() {
     output_count(passed);
     outsp();
-    if (passed > 0)
-        green("passed");
-    else
-        outs("passed");
+    if (passed > 0) green("passed");
+    else outs("passed");
     if (failed > 0) {
         outsp();
         printf(RED);
@@ -220,15 +224,12 @@ void space() {
 }
 
 void report_start() {
-    if (mode != INLINE)
-        outindent();
-    if (mode == SUMMARY)
-        outs("##+\n");
+    if (mode != INLINE) outindent();
+    if (mode == SUMMARY) outs("##+\n");
 }
 
 void report_test_begin(char *name) {
-    if (current_test != NULL)
-        report_test_failed("unterminated test case", 0);
+    if (current_test != NULL) report_test_failed("unterminated test case");
     current_test = name;
     switch (mode) {
         case LINES:
@@ -272,21 +273,19 @@ void report_test_passed() {
     }
 }
 
-void report_test_failed(char *error, int is_dynamic) {
+void report_test_failed(char *error) {
     failed++;
 
     struct failure *f = malloc(sizeof(struct failure));
     f->name = current_test;
     f->error = error;
-    f->is_dynamic = is_dynamic;
     insert(f);
 
     current_test = NULL;
     switch (mode) {
         case INLINE:
             clearln();
-            if (failed == 1)
-                outln();
+            if (failed == 1) outln();
             output_failure(f);
             fflush(stdout);
             break;
@@ -305,8 +304,7 @@ void report_test_failed(char *error, int is_dynamic) {
 }
 
 int report_finish() {
-    if (current_test != NULL)
-        report_test_failed("abrupt output end", 0);
+    if (current_test != NULL) report_test_failed("abrupt output end");
 
     int ok = (head == NULL) && (failed == 0);
     switch (mode) {
@@ -316,9 +314,9 @@ int report_finish() {
             printf("\n");
             break;
         case SUMMARY:
-            if (ok)
+	    if (ok) {
                 outs("##-ok\n");
-            else {
+	    } else {
                 outs("##-fail ");
                 outi(failed);
                 outs(" failed\n");
@@ -328,8 +326,7 @@ int report_finish() {
             if (mode == CHARACTER) {
                 int done = passed + failed;
                 if (done % 50 != 0) {
-                    if (done % 10 != 0)
-                        outsp();
+                    if (done % 10 != 0) outsp();
                     output_count(done);
                     outln();
                 }
@@ -343,28 +340,15 @@ int report_finish() {
             printf("\n");
     }
     fflush(stdout);
-    if (head != NULL)
-        free_list(&head);
     return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 char *str_slice(char *arr, int start, int end) {
-    char *n = malloc(sizeof(char) * (end - start) + 1);
-    if (n == NULL)
-        exit(EXIT_FAILURE);
-    for (int i = start; i < end; i++)
-        n[i - start] = arr[i];
-    n[end - start] = '\00';
-    return n;
+  return strndup(arr + start, end - start);
 }
 
-int match_str(char *exp, char *arr, int pos, int end) {
-    int len = strlen(exp);
-    if ((pos + len) > end)
-        return 0;
-    for (int i = 0; i < len; i++) {
-        if (exp[i] != arr[pos + i])
-            return 0;
-    }
-    return 1;
+int match_ok(char *arr, int pos, int end) {
+  int LEN = 2;
+  if ((end - pos) < LEN) return 0;
+  return strncmp("ok", arr + pos, LEN) == 0;
 }
