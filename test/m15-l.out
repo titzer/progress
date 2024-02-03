@@ -1,0 +1,17 @@
+a...[0;32mok[0m
+bb...[0;32mok[0m
+cc...[0;32mok[0m
+x...[0;32mok[0m
+yy...[0;32mok[0m
+zzz...[0;31mfailed[0m
+ff...[0;32mok[0m
+f...[0;32mok[0m
+a9...[0;32mok[0m
+a10...[0;32mok[0m
+a11...[0;32mok[0m
+a12...[0;32mok[0m
+a13...[0;32mok[0m
+a14...[0;32mok[0m
+a15...[0;32mok[0m
+[0;31mzzz[0m: fail
+14 of 15 [0;32mpassed[0m [0;31m1 failed[0m

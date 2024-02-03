@@ -1,0 +1,4 @@
+foo...[0;32mok[0m
+bar...[0;31mfailed[0m
+[0;31mbar[0m: fail msg
+1 of 2 [0;32mpassed[0m [0;31m1 failed[0m
