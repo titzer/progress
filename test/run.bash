@@ -37,6 +37,18 @@ function debug() {
     fi
 }
 
+function check_diff() {
+    EXPECT=$1
+    OUT=$2
+    diff $EXPECT $OUT > $OUT.diff
+    if [ "$?" = 0 ]; then
+	echo "##-ok"
+    else
+	echo "##-fail: $OUT.diff"
+    fi
+}
+
+# Serial tests in multiple modes, determined by the .out files
 for f in $TESTS; do
     test=$(basename $f)
     test=${test/.in/}
@@ -52,17 +64,26 @@ for f in $TESTS; do
 	fi
 	debug "  ==> args: $args"
 
-	
 	echo "##+progress $args < $f"
 	OUT=$T/$B.$args.out
 	DIFF=$T/$B.$args.diff
 	$PROGRESS $args < $f > $OUT
-	diff $expfile $OUT > $DIFF
-	if [ "$?" = 0 ]; then
-	    echo "##-ok"
-	else
-	    echo "##-fail: $DIFF"
-	fi
-	
+	check_diff $expfile $OUT
     done
 done
+
+
+
+# Parallel tests
+echo "##+progress p 3<one_ok.in 4<one_fail.in"
+expfile=p2.out
+OUT=$T/p2.out
+$PROGRESS p 3<one_ok.in 4<one_fail.in > $T/p2.out
+check_diff $expfile $OUT
+
+echo "##+progress p 3<p51.in 4<one_fail.in 5<m15.in"
+expfile=p3.out
+OUT=$T/p3.out
+$PROGRESS p 3<p51.in 4<one_fail.in 5<m15.in > $T/p3.out
+check_diff $expfile $OUT
+

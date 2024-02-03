@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 
 #define RESET "\033[0m"
 #define RED "\033[0;31m"
@@ -44,13 +46,24 @@ static int indent = 0;
 static int test_count = 0;
 static int passed = 0;
 static int failed = 0;
-static char *current_test;
+static char **current_test;
 static char *line_buffer = NULL;
 static int line_end = 0;
 static size_t buf_size = 0;
 
 // Used to implement clearing of the line by backing up one character at a time
 int char_backup = 0;
+
+// Used in implementing multiple pre-opened file descriptors (parallel mode)
+struct input {
+  FILE* file;
+  char* current_test;
+};
+#define START_INPUT 3
+#define MAX_INPUTS 128
+struct input inputs[MAX_INPUTS];
+int max_input = 1;
+int parallel = 0;
 
 void insert(struct failure *f) {
     struct node *node = malloc(sizeof(struct node));
@@ -65,6 +78,12 @@ void insert(struct failure *f) {
         tail = node;
     }
 }
+
+#if DEBUG
+#define TRACE(...) printf(__VA_ARGS__)
+#else
+#define TRACE(...)
+#endif
 
 int main(int argc, char *argv[]) {
     for (int i = 1; i < argc; i++) {
@@ -87,19 +106,65 @@ int main(int argc, char *argv[]) {
                 case 't':
                     indent++;
                     break;
+                case 'p':
+         	    parallel = 1;
+                    break;
 	        default:
-                    fprintf(stderr, "Usage: progress [iclst]\n");
+                    fprintf(stderr, "Usage: progress [iclpst]\n");
                     exit(EXIT_FAILURE);
             }
         }
     }
 
+    if (parallel) {
+      // Query all file descriptors between START_INPUT and MAX_INPUTS to see
+      // if they are open and readable.
+      for (int i = START_INPUT; i < MAX_INPUTS; i++) {
+	int res = fcntl(i, F_GETFL) != -1 || errno != EBADF;
+	if (res != 0) {
+	  TRACE("fd %d = %d\n", i, res);
+	  inputs[i].file = fdopen(i, "r");
+	  inputs[i].current_test = NULL;
+	  max_input = i + 1;
+	}
+      }
+      current_test = NULL;
+    } else {
+      // Only read from stdin.
+      inputs[0].file = stdin;
+      inputs[0].current_test = NULL;
+      current_test = &inputs[0].current_test;
+    }
+
     if (mode == SUMMARY) indent = 0;
 
     report_start();
-    while (getline(&line_buffer, &buf_size, stdin) > 0) {
+
+    if (parallel) {
+      // Cycle through all inputs and read a line from each.
+      int limit = max_input;
+      while (limit > 0) {
+	int next_limit = 0;
+	for (int i = 0; i < limit; i++) {
+	  if (inputs[i].file == NULL) continue; // input not open or finished
+	  int read = getline(&line_buffer, &buf_size, inputs[i].file);
+	  if (read > 0) {
+	    current_test = &inputs[i].current_test;
+	    line_end = strlen(line_buffer) - 1; // getline reads '\n' as well
+	    process_line();
+	    next_limit = i + 1;
+	  } else {
+	    inputs[i].file = NULL;
+	  }
+	}
+	limit = next_limit;
+      }
+    } else {
+      // Repeatedly read a line from stdin.
+      while (getline(&line_buffer, &buf_size, stdin) > 0) {
         line_end = strlen(line_buffer) - 1; // getline reads '\n' as well
         process_line();
+      }
     }
     return report_finish();
 }
@@ -229,8 +294,8 @@ void report_start() {
 }
 
 void report_test_begin(char *name) {
-    if (current_test != NULL) report_test_failed("unterminated test case");
-    current_test = name;
+    if (*current_test != NULL) report_test_failed("unterminated test case");
+    *current_test = name;
     switch (mode) {
         case LINES:
             outs(name);
@@ -250,8 +315,8 @@ void report_test_begin(char *name) {
 
 void report_test_passed() {
     passed++;
-    free(current_test);
-    current_test = NULL;
+    free(*current_test);
+    *current_test = NULL;
     switch (mode) {
         case INLINE:
             clearln();
@@ -277,11 +342,11 @@ void report_test_failed(char *error) {
     failed++;
 
     struct failure *f = malloc(sizeof(struct failure));
-    f->name = current_test;
+    f->name = strdup(*current_test);
     f->error = error;
     insert(f);
 
-    current_test = NULL;
+    *current_test = NULL;
     switch (mode) {
         case INLINE:
             clearln();
@@ -304,7 +369,11 @@ void report_test_failed(char *error) {
 }
 
 int report_finish() {
-    if (current_test != NULL) report_test_failed("abrupt output end");
+  // Check all inputs for a current test.
+  for (int i = 0; i < max_input; i++) {
+    current_test = &inputs[i].current_test;
+    if (*current_test != NULL) report_test_failed("abrupt output end");
+  }
 
     int ok = (head == NULL) && (failed == 0);
     switch (mode) {
