@@ -4,7 +4,7 @@ all: bin/progress.host
 
 bin/progress.host: src/progress.c
 	cc -o bin/progress.host -Ibin src/progress.c
-	bash -x bin/.auto-progress < test/make.txt
+	bash -x bin/.auto-progress < test/make.in
 
 .PHONY: clean
 clean:
