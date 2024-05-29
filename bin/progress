@@ -18,7 +18,7 @@ PROGRESS_LINK=$BIN/progress
 
 # Look for binaries for the first supported host platform.
 for host in $HOSTS; do
-    exe=$BIN/progress-$host
+    exe=$BIN/progress.$host
     if [ -x $exe ]; then
 	rm -f $PROGRESS_LINK
 	ln -s $exe $PROGRESS_LINK
